@@ -1,0 +1,31 @@
+on:
+  issues:
+    types:
+      - labeled
+jobs:
+  implement:
+    name: Implement Feature
+    if: github.event.label.name == 'ready-for-agent'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - name: Run /implement skill
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: "https://github.com/mattpocock/skills.git"
+          plugins: "mattpocock-skills@mattpocock"
+          prompt: |
+            /mattpocock-skills:implement feature described in issue #${{ github.event.issue.number }}
+
+            Before starting, create a branch "feature/${{ github.event.issue.number }}-<slug>". When done, push it and open a PR with "Closes #${{ github.event.issue.number }}".
+          claude_args: |
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(git:*),Bash(gh:*),Bash(npm ci),Bash(npm test:*),Bash(npm run:*)"
