@@ -1,7 +1,12 @@
 import { isRouteErrorResponse, useRouteError } from 'react-router'
+import { NotFound } from '@/routes/not-found'
 
 export function RootErrorBoundary() {
   const error = useRouteError()
+
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    return <NotFound />
+  }
 
   let message = 'An unexpected error occurred.'
   if (isRouteErrorResponse(error)) {
