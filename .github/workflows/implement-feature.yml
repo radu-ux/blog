@@ -4,6 +4,7 @@ on:
       - labeled
 jobs:
   implement:
+    environment: development
     name: Implement Feature
     if: github.event.label.name == 'ready-for-agent'
     runs-on: ubuntu-latest
