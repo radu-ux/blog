@@ -22,7 +22,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           show_full_output: true
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/mattpocock/skills.git"
           plugins: "mattpocock-skills@mattpocock"
           prompt: |
