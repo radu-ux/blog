@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { readdirSync, readFileSync } from 'node:fs'
-import type { Plugin } from 'vite'
+import type { Plugin, ViteDevServer } from 'vite'
 import { collectPosts, MDX_EXTENSION, type Mode } from './collect-posts.ts'
 
 interface PluginConfig {
@@ -24,16 +24,32 @@ function toImportSpecifier(filePath: string) {
   return filePath.split('\\').join('/')
 }
 
-function generateModuleSource(rootPath: string, mode: Mode) {
+function warnInvalidPosts(
+  devServer: ViteDevServer | undefined,
+  errors: string[],
+) {
+  for (const error of errors) {
+    console.warn(`[${PLUGIN_NAME}] ${error}`)
+  }
+  const message = `[${PLUGIN_NAME}] Invalid posts:\n${errors.join('\n')}`
+  devServer?.ws.send({
+    type: 'error',
+    err: { message, stack: '', plugin: PLUGIN_NAME },
+  })
+}
+
+function generateModuleSource(
+  rootPath: string,
+  mode: Mode,
+  devServer: ViteDevServer | undefined,
+) {
   const { posts, errors } = collectPosts(readPostFiles(rootPath), { mode })
 
   if (errors.length > 0) {
     if (mode === 'production') {
       throw new Error(`[${PLUGIN_NAME}] Invalid posts:\n${errors.join('\n')}`)
     }
-    for (const error of errors) {
-      console.warn(`[${PLUGIN_NAME}] ${error}`)
-    }
+    warnInvalidPosts(devServer, errors)
   }
 
   const entries = Object.values(posts).map((post) => {
@@ -49,6 +65,7 @@ function generateModuleSource(rootPath: string, mode: Mode) {
 export default function postsPlugin({ postsPath }: PluginConfig): Plugin {
   const rootPath = join(process.cwd(), postsPath)
   let mode: Mode = 'production'
+  let devServer: ViteDevServer | undefined
 
   return {
     name: PLUGIN_NAME,
@@ -60,10 +77,11 @@ export default function postsPlugin({ postsPath }: PluginConfig): Plugin {
     },
     load(id) {
       if (id === RESOLVED_VIRTUAL_MODULE_ID) {
-        return generateModuleSource(rootPath, mode)
+        return generateModuleSource(rootPath, mode, devServer)
       }
     },
     configureServer(server) {
+      devServer = server
       server.watcher.add(rootPath)
       server.watcher.on('all', (_event, changedPath) => {
         if (!changedPath.startsWith(rootPath)) return

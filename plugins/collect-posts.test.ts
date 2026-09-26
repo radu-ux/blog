@@ -58,9 +58,81 @@ describe('collectPosts', () => {
     )
 
     expect(posts).toEqual({})
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('broken.mdx')
+    expect(errors[0]).toContain('description')
+    expect(errors[0]).toContain('date')
+  })
+
+  it('collects an error for ill-typed required fields', () => {
+    const { posts, errors } = collectPosts(
+      [
+        {
+          filename: 'ill-typed.mdx',
+          contents:
+            '---\ntitle: 42\ndescription: true\ndate: 2024-01-01\n---\n',
+        },
+      ],
+      { mode: 'production' },
+    )
+
+    expect(posts).toEqual({})
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('title')
+    expect(errors[0]).toContain('description')
+  })
+
+  it('collects an error for a malformed date', () => {
+    const { posts, errors } = collectPosts(
+      [
+        {
+          filename: 'bad-date.mdx',
+          contents:
+            '---\ntitle: Bad Date\ndescription: A description\ndate: not-a-date\n---\n',
+        },
+      ],
+      { mode: 'production' },
+    )
+
+    expect(posts).toEqual({})
     expect(errors).toEqual([
-      'broken.mdx: missing required field(s) description, date',
+      'bad-date.mdx: date must be an ISO YYYY-MM-DD date',
     ])
+  })
+
+  it('collects an error for a non-URL-safe filename', () => {
+    const { posts, errors } = collectPosts(
+      [
+        {
+          filename: 'Not URL Safe.mdx',
+          contents:
+            '---\ntitle: Title\ndescription: A description\ndate: 2024-01-01\n---\n',
+        },
+      ],
+      { mode: 'production' },
+    )
+
+    expect(posts).toEqual({})
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('Not URL Safe.mdx')
+    expect(errors[0]).toContain('not URL-safe')
+  })
+
+  it('collects an error for unparseable front-matter', () => {
+    const { posts, errors } = collectPosts(
+      [
+        {
+          filename: 'unparseable.mdx',
+          contents: '---\ntitle: [Unclosed\n---\nBody',
+        },
+      ],
+      { mode: 'production' },
+    )
+
+    expect(posts).toEqual({})
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('unparseable.mdx')
+    expect(errors[0]).toContain('front-matter failed to parse')
   })
 
   it('collects multiple errors across multiple invalid Posts', () => {
