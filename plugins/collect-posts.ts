@@ -1,6 +1,7 @@
 import matter from 'gray-matter'
 
 export const MDX_EXTENSION = '.mdx'
+export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 export type Mode = 'development' | 'production'
 
@@ -48,41 +49,57 @@ export function collectPosts(
     if (!file.filename.endsWith(MDX_EXTENSION)) continue
 
     const slug = file.filename.slice(0, -MDX_EXTENSION.length)
-    const { data } = matter(file.contents)
+    const issues: string[] = []
+
+    if (!SLUG_PATTERN.test(slug)) {
+      issues.push(`filename is not URL-safe (must match ${SLUG_PATTERN})`)
+    }
+
+    let data: Record<string, unknown>
+    try {
+      data = matter(file.contents).data as Record<string, unknown>
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      issues.push(`front-matter failed to parse: ${reason}`)
+      errors.push(`${file.filename}: ${issues.join('; ')}`)
+      continue
+    }
 
     const title = isNonEmptyString(data.title) ? data.title : undefined
+    if (title === undefined) issues.push('title must be a non-empty string')
+
     const description = isNonEmptyString(data.description)
       ? data.description
       : undefined
+    if (description === undefined) {
+      issues.push('description must be a non-empty string')
+    }
+
     const date = normalizeDate(data.date)
+    if (date === undefined) {
+      issues.push('date must be an ISO YYYY-MM-DD date')
+    }
 
-    if (
-      title === undefined ||
-      description === undefined ||
-      date === undefined
-    ) {
-      const missingFields = [
-        title === undefined && 'title',
-        description === undefined && 'description',
-        date === undefined && 'date',
-      ].filter((field): field is string => Boolean(field))
+    const author = isNonEmptyString(data.author) ? data.author : undefined
+    if (data.author !== undefined && author === undefined) {
+      issues.push('author must be a string')
+    }
 
-      errors.push(
-        `${file.filename}: missing required field(s) ${missingFields.join(', ')}`,
-      )
+    if (issues.length > 0) {
+      errors.push(`${file.filename}: ${issues.join('; ')}`)
       continue
     }
 
     const draft = data.draft === true
     if (draft && mode === 'production') continue
 
-    const author = isNonEmptyString(data.author) ? data.author : undefined
-
     posts[slug] = {
       slug,
-      title,
-      description,
-      date,
+      // title/description/date are guaranteed defined here: every branch
+      // that could leave one undefined also pushed onto `issues` above.
+      title: title as string,
+      description: description as string,
+      date: date as string,
       draft,
       ...(author !== undefined ? { author } : {}),
     }
